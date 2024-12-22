@@ -1,6 +1,6 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import jittor
+import jittor.nn as nn
+import jittor.nn as F
 
 import math
 import numpy as np
@@ -8,7 +8,7 @@ import numpy as np
 from sklearn.metrics import average_precision_score, roc_auc_score
 
 from torch_scatter import scatter
-from torch_geometric.nn import TransformerConv
+from jittor_geometric.nn import TransformerConv
 
 ################################################################################################
 ################################################################################################
@@ -68,7 +68,7 @@ class SAMixer(nn.Module):
         self.mlp_head = nn.Linear(hidden_channels, out_channels)
 
         # inner layers
-        self.mixer_blocks = torch.nn.ModuleList()
+        self.mixer_blocks = jittor.nn.ModuleList()
         for _ in range(num_layers):
             self.mixer_blocks.append(MixerBlock(hidden_channels, heads, dropout))
 
@@ -90,14 +90,14 @@ class SAMixer(nn.Module):
         x = self.feat_encoder(edge_feats, edge_ts)
 
         # if two nodes belongs to the same subgraph, then it has same batch_inds
-        batch_inds = torch.arange(batch_size).repeat_interleave(self.per_graph_size).to(device)
+        batch_inds = jittor.arange(batch_size).repeat_interleave(self.per_graph_size).to(device)
         batch_inds = batch_inds[inds] # select the activate nodes
 
         unique_batch_inds = batch_inds.unique() # activate nodes
         
         row = batch_inds.view(-1, 1).repeat(1, len(batch_inds))
         col = batch_inds.view(1, -1).repeat(len(batch_inds), 1)
-        edge_inds = torch.stack(torch.where(row == col))
+        edge_inds = jittor.stack(jittor.where(row == col))
         
         # apply to original feats
         for i in range(self.num_layers):
@@ -108,7 +108,7 @@ class SAMixer(nn.Module):
         x = scatter(x, batch_inds, dim=0, reduce="mean")[unique_batch_inds]
         x = self.mlp_head(x)
         
-        out = torch.zeros((batch_size, x.size(1))).to(device)
+        out = jittor.zeros((batch_size, x.size(1))).to(device)
         out[unique_batch_inds] = out[unique_batch_inds] + x
         return out
     
@@ -118,14 +118,14 @@ class SAMixer(nn.Module):
         x = self.feat_encoder(edge_feats, edge_ts)
 
         # if two nodes belongs to the same subgraph, then it has same batch_inds
-        batch_inds = torch.arange(batch_size).repeat_interleave(self.per_graph_size).to(device)
+        batch_inds = jittor.arange(batch_size).repeat_interleave(self.per_graph_size).to(device)
         batch_inds = batch_inds[inds] # select the activate nodes
 
         unique_batch_inds = batch_inds.unique() # activate nodes
         
         row = batch_inds 
-        col = torch.arange(len(row)).to(device)
-        edge_inds = torch.stack([row, col])
+        col = jittor.arange(len(row)).to(device)
+        edge_inds = jittor.stack([row, col])
         
         # apply to original feats
         for i in range(self.num_layers):
@@ -136,7 +136,7 @@ class SAMixer(nn.Module):
         x = scatter(x, batch_inds, dim=0, reduce="sum")[unique_batch_inds] / self.per_graph_size
         x = self.mlp_head(x)
         
-        out = torch.zeros((batch_size, x.size(1))).to(device)
+        out = jittor.zeros((batch_size, x.size(1))).to(device)
         out[unique_batch_inds] = out[unique_batch_inds] + x
         return out
     
@@ -186,7 +186,7 @@ class Mixer_per_node(nn.Module):
             x = self.base_model(*model_inputs)
         elif self.time_feats_dim > 0 and self.node_feats_dim > 0:
             x = self.base_model(*model_inputs)
-            x = torch.cat([x, node_feats], dim=1)
+            x = jittor.cat([x, node_feats], dim=1)
         elif self.time_feats_dim == 0 and self.node_feats_dim > 0:
             x = node_feats
         else:
@@ -194,16 +194,16 @@ class Mixer_per_node(nn.Module):
         
         pred_pos, pred_neg = self.edge_predictor(x, neg_samples=neg_samples)
         
-        loss_pos = self.creterion(pred_pos, torch.ones_like(pred_pos))[pos_mask].mean()
-        loss_neg = self.creterion(pred_neg, torch.zeros_like(pred_neg))[neg_mask].mean()
+        loss_pos = self.creterion(pred_pos, jittor.ones_like(pred_pos))[pos_mask].mean()
+        loss_neg = self.creterion(pred_neg, jittor.zeros_like(pred_neg))[neg_mask].mean()
         
         # compute roc and precision score
         
-        y_pred = torch.cat([pred_pos, pred_neg], dim=0).sigmoid().cpu().detach()
-        y_true = torch.cat([torch.ones_like(pred_pos), torch.zeros_like(pred_neg)], dim=0).cpu().detach()
+        y_pred = jittor.cat([pred_pos, pred_neg], dim=0).sigmoid().cpu().detach()
+        y_true = jittor.cat([jittor.ones_like(pred_pos), jittor.zeros_like(pred_neg)], dim=0).cpu().detach()
         acc = average_precision_score(y_true, y_pred)
         if neg_samples > 1:
-            auc = torch.sum(pred_pos.squeeze() < pred_neg.squeeze().reshape(neg_samples, -1), dim=0)
+            auc = jittor.sum(pred_pos.squeeze() < pred_neg.squeeze().reshape(neg_samples, -1), dim=0)
             auc = 1 / (auc+1)
         else:
             auc = roc_auc_score(y_true, y_pred)

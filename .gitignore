@@ -11,7 +11,7 @@ perf.data.old
 *.pdf
 *.zip
 *.tgz
-test.py
+# test.py
 extern/mkl/mkldnn_lnx*/*
 build/
 venv/
