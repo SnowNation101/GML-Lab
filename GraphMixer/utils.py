@@ -57,10 +57,11 @@ def load_feat(d):
     return node_feats, edge_feats    
 
 def load_graph(d):
-    # df = pd.read_csv('DATA/{}/edges.csv'.format(d))
-    df = pd.read_csv('data/{}/raw/{}.csv'.format(d, d))
-    # g = np.load('DATA/{}/ext_full.npz'.format(d))
-    g = np.load('data/{}/processed/ext_full.npz'.format(d))
+    df = pd.read_csv('GraphMixer/DATA/{}/edges.csv'.format(d))
+    g = np.load('GraphMixer/DATA/{}/ext_full.npz'.format(d))
+
+    # df = pd.read_csv('data/{}/raw/{}.csv'.format(d, d))
+    # g = np.load('data/{}/processed/ext_full.npz'.format(d))
     return g, df
 
 def node_cls_info(args):

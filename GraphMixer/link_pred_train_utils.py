@@ -68,7 +68,7 @@ def run(model, optimizer, args, subgraphs, df, node_feats, edge_feats, mode):
 
         # raw edge feats 
         subgraph_edge_feats = edge_feats[subgraph_data['eid']]
-        subgraph_edts = torch.from_numpy(subgraph_data['edts']).float()
+        subgraph_edts = jittor.from_numpy(subgraph_data['edts']).float()
 
         if args.use_graph_structure:
             num_subgraphs = len(mini_batch_inds)
@@ -95,7 +95,7 @@ def run(model, optimizer, args, subgraphs, df, node_feats, edge_feats, mode):
             subgraph_edge_feats.to(args.device), 
             subgraph_edts.to(args.device), 
             len(has_temporal_neighbors), 
-            torch.tensor(all_inds).long()
+            jittor.tensor(all_inds).long()
         ]
         
         # forward + backward
@@ -125,7 +125,7 @@ def run(model, optimizer, args, subgraphs, df, node_feats, edge_feats, mode):
 
 def link_pred_train(model, args, g, df, node_feats, edge_feats):
     
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    optimizer = jittor.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     
     ###################################################
     # get cached data
@@ -156,7 +156,7 @@ def link_pred_train(model, args, g, df, node_feats, edge_feats):
         print('>>> Epoch ', epoch+1)
         train_ap, train_auc, train_loss = run(model, optimizer, args, train_subgraphs, df, 
                                               node_feats, edge_feats, mode='train')
-        with torch.no_grad():
+        with jittor.no_grad():
             # second variable (optimizer) is only required for training
             valid_ap, valid_auc, valid_loss = run(copy.deepcopy(model), None, args, valid_subgraphs, df, 
                                                   node_feats, edge_feats, mode='valid')
@@ -201,10 +201,10 @@ def compute_sign_feats(node_feats, df, start_i, num_links, root_nodes, args):
     num_duplicate = len(root_nodes) // num_links 
     num_nodes = node_feats.shape[0]
 
-    root_inds = torch.arange(len(root_nodes)).view(num_duplicate, -1)
+    root_inds = jittor.arange(len(root_nodes)).view(num_duplicate, -1)
     root_inds = [arr.flatten() for arr in root_inds.chunk(1, dim=1)]
 
-    output_feats = torch.zeros((len(root_nodes), node_feats.size(1))).to(args.device)
+    output_feats = jittor.zeros((len(root_nodes), node_feats.size(1))).to(args.device)
     i = start_i
 
     for _root_ind in root_inds:
@@ -214,20 +214,20 @@ def compute_sign_feats(node_feats, df, start_i, num_links, root_nodes, args):
         else:
             prev_i = max(0, i - args.structure_time_gap)
             cur_df = df[prev_i: i] # get adj's row, col indices (as undirected)
-            src = torch.from_numpy(cur_df.src.values)
-            dst = torch.from_numpy(cur_df.dst.values)
-            edge_index = torch.stack([
-                torch.cat([src, dst]), 
-                torch.cat([dst, src])
+            src = jittor.from_numpy(cur_df.src.values)
+            dst = jittor.from_numpy(cur_df.dst.values)
+            edge_index = jittor.stack([
+                jittor.cat([src, dst]), 
+                jittor.cat([dst, src])
             ])
 
-            edge_index, edge_cnt = torch.unique(edge_index, dim=1, return_counts=True) 
+            edge_index, edge_cnt = jittor.unique(edge_index, dim=1, return_counts=True) 
 
             mask = edge_index[0]!=edge_index[1] # ignore self-loops
 
             adj = SparseTensor(
                 # value = edge_cnt[mask].float(), # take number of edges into consideration
-                value = torch.ones_like(edge_cnt[mask]).float(),
+                value = jittor.ones_like(edge_cnt[mask]).float(),
                 row = edge_index[0][mask].long(),
                 col = edge_index[1][mask].long(),
                 sparse_sizes=(num_nodes, num_nodes)
@@ -237,7 +237,7 @@ def compute_sign_feats(node_feats, df, start_i, num_links, root_nodes, args):
             sign_feats = [node_feats]
             for _ in range(args.structure_hops):
                 sign_feats.append(adj_norm@sign_feats[-1])
-            sign_feats = torch.sum(torch.stack(sign_feats), dim=0)
+            sign_feats = jittor.sum(jittor.stack(sign_feats), dim=0)
 
         output_feats[_root_ind] = sign_feats[root_nodes[_root_ind]]
 
@@ -290,7 +290,7 @@ def fetch_all_predict(model, optimizer, args, subgraphs, df, node_feats, edge_fe
 
         # raw edge feats 
         subgraph_edge_feats = edge_feats[subgraph_data['eid']]
-        subgraph_edts = torch.from_numpy(subgraph_data['edts']).float()
+        subgraph_edts = jittor.from_numpy(subgraph_data['edts']).float()
 
         if args.use_graph_structure:
             num_of_df_links = len(subgraph_data_list) // (cached_neg_samples+2)   
@@ -316,7 +316,7 @@ def fetch_all_predict(model, optimizer, args, subgraphs, df, node_feats, edge_fe
             subgraph_edge_feats.to(args.device), 
             subgraph_edts.to(args.device), 
             len(has_temporal_neighbors), 
-            torch.tensor(all_inds).long()
+            jittor.tensor(all_inds).long()
         ]
         
         # forward + backward
@@ -328,6 +328,6 @@ def fetch_all_predict(model, optimizer, args, subgraphs, df, node_feats, edge_fe
         pbar.update(1)
     pbar.close()    
     
-    all_pos = torch.cat(all_pos)
-    all_neg = torch.cat(all_neg)
+    all_pos = jittor.cat(all_pos)
+    all_neg = jittor.cat(all_neg)
     return all_pos, all_neg

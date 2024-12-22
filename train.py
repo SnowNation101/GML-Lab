@@ -218,7 +218,7 @@ if __name__ == "__main__":
     
     if os.path.exists(args.model_fn) == False or args.regen_models:
         print('Train link prediction task from scratch ...')
-        model = link_pred_train(model.to(args.device), args, g, df, node_feats, edge_feats)
+        model = link_pred_train(model, args, g, df, node_feats, edge_feats)
         jittor.save(model.state_dict(), args.model_fn)
         print('Save model to ', args.model_fn)
     else:

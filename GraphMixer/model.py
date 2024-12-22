@@ -1,6 +1,6 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import jittor
+import jittor.nn as nn
+import jittor.nn as F
 
 import math
 import numpy as np
@@ -12,11 +12,11 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 ################################################################################################
 
 def compute_ap_score(pred_pos, pred_neg, neg_samples):
-        y_pred = torch.cat([pred_pos, pred_neg], dim=0).sigmoid().cpu().detach()
-        y_true = torch.cat([torch.ones_like(pred_pos), torch.zeros_like(pred_neg)], dim=0).cpu().detach()
+        y_pred = jittor.cat([pred_pos, pred_neg], dim=0).sigmoid().cpu().detach()
+        y_true = jittor.cat([jittor.ones_like(pred_pos), jittor.zeros_like(pred_neg)], dim=0).cpu().detach()
         acc = average_precision_score(y_true, y_pred)
         if neg_samples > 1:
-            auc = torch.sum(pred_pos.squeeze() < pred_neg.squeeze().reshape(neg_samples, -1), dim=0)
+            auc = jittor.sum(pred_pos.squeeze() < pred_neg.squeeze().reshape(neg_samples, -1), dim=0)
             auc = 1 / (auc+1)
         else:
             auc = roc_auc_score(y_true, y_pred)
@@ -25,6 +25,45 @@ def compute_ap_score(pred_pos, pred_neg, neg_samples):
 ################################################################################################
 ################################################################################################
 ################################################################################################
+
+
+def calculate_fan_in_and_fan_out(tensor):
+    dimensions = tensor.dim()
+    if dimensions < 2:
+        raise ValueError(
+            "Fan in and fan out can not be computed for tensor with fewer than 2 dimensions"
+        )
+
+    num_input_fmaps = tensor.size(1)
+    num_output_fmaps = tensor.size(0)
+    receptive_field_size = 1
+    if tensor.dim() > 2:
+        # math.prod is not always available, accumulate the product manually
+        # we could use functools.reduce but that is not supported by TorchScript
+        for s in tensor.shape[2:]:
+            receptive_field_size *= s
+    fan_in = num_input_fmaps * receptive_field_size
+    fan_out = num_output_fmaps * receptive_field_size
+
+    return fan_in, fan_out
+
+
+def reset_linear_parameters(linear_layer):
+    nn.init.kaiming_uniform_(linear_layer.weight, a=math.sqrt(5))
+    if linear_layer.bias is not None:
+        fan_in, _ = calculate_fan_in_and_fan_out(linear_layer.weight)
+        bound = 1 / math.sqrt(fan_in)
+        nn.init.uniform_(linear_layer.bias, -bound, bound)
+
+
+def reset_laynorm_parameters(laynorm_layer):
+    if laynorm_layer.elementwise_affine:
+        # nn.init.one(laynorm_layer.weight)
+        nn.init.constant_(laynorm_layer.weight, 1)
+        if laynorm_layer.bias is not None:
+            # nn.init.zero(laynorm_layer.bias)
+            nn.init.constant_(laynorm_layer.bias, 0)
+
 """
 Module: Time-encoder
 """
@@ -41,15 +80,15 @@ class TimeEncode(nn.Module):
         self.reset_parameters()
     
     def reset_parameters(self, ):
-        self.w.weight = nn.Parameter((torch.from_numpy(1 / 10 ** np.linspace(0, 9, self.dim, dtype=np.float32))).reshape(self.dim, -1))
-        self.w.bias = nn.Parameter(torch.zeros(self.dim))
+        self.w.weight = nn.Parameter((jittor.array(1 / 10 ** np.linspace(0, 9, self.dim, dtype=np.float32))).reshape(self.dim, -1))
+        self.w.bias = nn.Parameter(jittor.zeros(self.dim))
 
         self.w.weight.requires_grad = False
         self.w.bias.requires_grad = False
     
-    @torch.no_grad()
+    @jittor.no_grad()
     def forward(self, t):
-        output = torch.cos(self.w(t.reshape((-1, 1))))
+        output = jittor.cos(self.w(t.reshape((-1, 1))))
         return output
 
 
@@ -83,9 +122,11 @@ class FeedForward(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        self.linear_0.reset_parameters()
+        # self.linear_0.reset_parameters()
+        reset_linear_parameters(self.linear_0)
         if self.use_single_layer==False:
-            self.linear_1.reset_parameters()
+            # self.linear_1.reset_parameters()
+            reset_linear_parameters(self.linear_1)
 
     def forward(self, x):
         x = self.linear_0(x)
@@ -125,11 +166,13 @@ class MixerBlock(nn.Module):
 
     def reset_parameters(self):
         if 'token' in self.module_spec:
-            self.token_layernorm.reset_parameters()
+            # self.token_layernorm.reset_parameters()
+            reset_laynorm_parameters(self.token_layernorm)
             self.token_forward.reset_parameters()
 
         if 'channel' in self.module_spec:
-            self.channel_layernorm.reset_parameters()
+            # self.channel_layernorm.reset_parameters()
+            reset_laynorm_parameters(self.channel_layernorm)
             self.channel_forward.reset_parameters()
         
     def token_mixer(self, x):
@@ -157,16 +200,16 @@ class FeatEncode(nn.Module):
         super().__init__()
         
         self.time_encoder = TimeEncode(time_dims)
-        self.feat_encoder = nn.Linear(time_dims + feat_dims, out_dims) 
+        self.feat_encoder = nn.Linear(time_dims + feat_dims, out_dims)
         self.reset_parameters()
 
     def reset_parameters(self):
         self.time_encoder.reset_parameters()
-        self.feat_encoder.reset_parameters()
+        reset_linear_parameters(self.feat_encoder)
         
     def forward(self, edge_feats, edge_ts):
         edge_time_feats = self.time_encoder(edge_ts)
-        x = torch.cat([edge_feats, edge_time_feats], dim=1)
+        x = jittor.cat([edge_feats, edge_time_feats], dim=1)
         return self.feat_encoder(x)
 
 class MLPMixer(nn.Module):
@@ -192,7 +235,7 @@ class MLPMixer(nn.Module):
         self.mlp_head = nn.Linear(hidden_channels, out_channels)
         
         # inner layers
-        self.mixer_blocks = torch.nn.ModuleList()
+        self.mixer_blocks = jittor.nn.ModuleList()
         for ell in range(num_layers):
             if module_spec is None:
                 self.mixer_blocks.append(
@@ -220,24 +263,27 @@ class MLPMixer(nn.Module):
         for layer in self.mixer_blocks:
             layer.reset_parameters()
         self.feat_encoder.reset_parameters()
-        self.layernorm.reset_parameters()
-        self.mlp_head.reset_parameters()
+        # self.layernorm.reset_parameters()
+        reset_laynorm_parameters(self.layernorm)
+        # self.mlp_head.reset_parameters()
+        reset_linear_parameters(self.mlp_head)
+
 
     def forward(self, edge_feats, edge_ts, batch_size, inds):
         # x :     [ batch_size, graph_size, edge_dims+time_dims]
         edge_time_feats = self.feat_encoder(edge_feats, edge_ts)
-        x = torch.zeros((batch_size * self.per_graph_size, 
+        x = jittor.zeros((batch_size * self.per_graph_size, 
                          edge_time_feats.size(1))).to(edge_feats.device)
         x[inds] = x[inds] + edge_time_feats     
-        x = torch.split(x, self.per_graph_size)
-        x = torch.stack(x)
+        x = jittor.split(x, self.per_graph_size)
+        x = jittor.stack(x)
         
         # apply to original feats
         for i in range(self.num_layers):
             # apply to channel + feat dim
             x = self.mixer_blocks[i](x)
         x = self.layernorm(x)
-        x = torch.mean(x, dim=1)
+        x = jittor.mean(x, dim=1)
         x = self.mlp_head(x)
         return x
     
@@ -249,7 +295,7 @@ class MLPMixer(nn.Module):
 Edge predictor
 """
 
-class EdgePredictor_per_node(torch.nn.Module):
+class EdgePredictor_per_node(jittor.nn.Module):
     """
     out = linear(src_node_feats) + linear(dst_node_feats)
     out = ReLU(out)
@@ -260,25 +306,28 @@ class EdgePredictor_per_node(torch.nn.Module):
         self.dim_in_time = dim_in_time
         self.dim_in_node = dim_in_node
 
-        self.src_fc = torch.nn.Linear(dim_in_time + dim_in_node, 100)
-        self.dst_fc = torch.nn.Linear(dim_in_time + dim_in_node, 100)
-        self.out_fc = torch.nn.Linear(100, 1)
+        self.src_fc = jittor.nn.Linear(dim_in_time + dim_in_node, 100)
+        self.dst_fc = jittor.nn.Linear(dim_in_time + dim_in_node, 100)
+        self.out_fc = jittor.nn.Linear(100, 1)
         self.reset_parameters()
         
     def reset_parameters(self, ):
-        self.src_fc.reset_parameters()
-        self.dst_fc.reset_parameters()
-        self.out_fc.reset_parameters()
+        # self.src_fc.reset_parameters()
+        # self.dst_fc.reset_parameters()
+        # self.out_fc.reset_parameters()
+        reset_linear_parameters(self.src_fc)
+        reset_linear_parameters(self.dst_fc)
+        reset_linear_parameters(self.out_fc)
 
     def forward(self, h, neg_samples=1):
         num_edge = h.shape[0] // (neg_samples + 2)
         h_src = self.src_fc(h[:num_edge])
         h_pos_dst = self.dst_fc(h[num_edge:2 * num_edge])
         h_neg_dst = self.dst_fc(h[2 * num_edge:])
-        h_pos_edge = torch.nn.functional.relu(h_src + h_pos_dst)
-        h_neg_edge = torch.nn.functional.relu(h_src.tile(neg_samples, 1) + h_neg_dst)
-        # h_pos_edge = torch.nn.functional.relu(h_pos_dst)
-        # h_neg_edge = torch.nn.functional.relu(h_neg_dst)
+        h_pos_edge = jittor.nn.functional.relu(h_src + h_pos_dst)
+        h_neg_edge = jittor.nn.functional.relu(h_src.tile(neg_samples, 1) + h_neg_dst)
+        # h_pos_edge = jittor.nn.functional.relu(h_pos_dst)
+        # h_neg_edge = jittor.nn.functional.relu(h_neg_dst)
         return self.out_fc(h_pos_edge), self.out_fc(h_neg_edge)
     
 class Mixer_per_node(nn.Module):
@@ -296,7 +345,7 @@ class Mixer_per_node(nn.Module):
 
         self.edge_predictor = EdgePredictor_per_node(**edge_predictor_configs)
         
-        self.creterion = nn.BCEWithLogitsLoss(reduction='none')
+        self.creterion = nn.BCEWithLogitsLoss()
         self.reset_parameters()            
 
     def reset_parameters(self):
@@ -308,8 +357,8 @@ class Mixer_per_node(nn.Module):
         pred_pos, pred_neg = self.predict(model_inputs, has_temporal_neighbors, neg_samples, node_feats)
         
         pos_mask, neg_mask = self.pos_neg_mask(has_temporal_neighbors, neg_samples)
-        loss_pos = self.creterion(pred_pos, torch.ones_like(pred_pos))[pos_mask].mean()
-        loss_neg = self.creterion(pred_neg, torch.zeros_like(pred_neg))[neg_mask].mean()
+        loss_pos = self.creterion(pred_pos, jittor.ones_like(pred_pos))[pos_mask].mean()
+        loss_neg = self.creterion(pred_neg, jittor.zeros_like(pred_neg))[neg_mask].mean()
         
         # compute roc and precision score
         acc, auc  = compute_ap_score(pred_pos, pred_neg, neg_samples)        
@@ -321,7 +370,7 @@ class Mixer_per_node(nn.Module):
             x = self.base_model(*model_inputs)
         elif self.time_feats_dim > 0 and self.node_feats_dim > 0:
             x = self.base_model(*model_inputs)
-            x = torch.cat([x, node_feats], dim=1)
+            x = jittor.cat([x, node_feats], dim=1)
         elif self.time_feats_dim == 0 and self.node_feats_dim > 0:
             x = node_feats
         else:
@@ -356,11 +405,11 @@ class NodeClassificationModel(nn.Module):
 
     def __init__(self, dim_in, dim_hid, num_class):
         super(NodeClassificationModel, self).__init__()
-        self.fc1 = torch.nn.Linear(dim_in, dim_hid)
-        self.fc2 = torch.nn.Linear(dim_hid, num_class)
+        self.fc1 = jittor.nn.Linear(dim_in, dim_hid)
+        self.fc2 = jittor.nn.Linear(dim_hid, num_class)
 
     def forward(self, x):
         x = self.fc1(x)
-        x = torch.nn.functional.relu(x)
+        x = jittor.nn.functional.relu(x)
         x = self.fc2(x)
         return x

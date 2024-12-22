@@ -13,9 +13,10 @@ args.add_reverse = True # GraphMixer need it
 
 print(args)
 
-# df = pd.read_csv('DATA/{}/edges.csv'.format(args.data))
-df = pd.read_csv('data/{}/raw/{}.csv'.format(args.data, args.data))
-num_nodes = max(int(df['user_id'].max()), int(df['item_id'].max())) + 1
+df = pd.read_csv('GraphMixer/DATA/{}/edges.csv'.format(args.data))
+# df = pd.read_csv('data/{}/raw/{}.csv'.format(args.data, args.data))
+num_nodes = max(int(df['src'].max()), int(df['dst'].max())) + 1
+# num_nodes = max(int(df['user_id'].max()), int(df['item_id'].max())) + 1
 print('num_nodes: ', num_nodes)
 
 ext_full_indptr = np.zeros(num_nodes + 1, dtype=np.int32)
@@ -24,16 +25,20 @@ ext_full_ts = [[] for _ in range(num_nodes)]
 ext_full_eid = [[] for _ in range(num_nodes)]
 
 for idx, row in tqdm(df.iterrows(), total=len(df)):
-    src = int(row['user_id'])
-    dst = int(row['item_id'])
+    # src = int(row['user_id'])
+    # dst = int(row['item_id'])
+    src = int(row['src'])
+    dst = int(row['dst'])
     
     ext_full_indices[src].append(dst)
-    ext_full_ts[src].append(row['timestamp'])
+    # ext_full_ts[src].append(row['timestamp'])
+    ext_full_ts[src].append(row['time'])
     ext_full_eid[src].append(idx)
     
     if args.add_reverse:
         ext_full_indices[dst].append(src)
-        ext_full_ts[dst].append(row['timestamp'])
+        # ext_full_ts[dst].append(row['timestamp'])
+        ext_full_ts[dst].append(row['time'])
         ext_full_eid[dst].append(idx)
 
 for i in tqdm(range(num_nodes)):
@@ -59,5 +64,8 @@ for i in tqdm(range(ext_full_indptr.shape[0] - 1)):
 
 print('saving...')
 
-np.savez('data/{}/processed/ext_full.npz'.format(args.data), indptr=ext_full_indptr,
-         indices=ext_full_indices, ts=ext_full_ts, eid=ext_full_eid)
+np.savez('GraphMixer/DATA/{}/ext_full.npz'.format(args.data), 
+         indptr=ext_full_indptr,
+         indices=ext_full_indices, 
+         ts=ext_full_ts, 
+         eid=ext_full_eid)
