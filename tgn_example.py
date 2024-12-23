@@ -150,6 +150,7 @@ def test(loader):
         z, last_update = memory(n_id)
         z = gnn(z, last_update, edge_index, data.t[e_id], data.msg[e_id])
 
+        # TODO
         pos_out = link_pred(z[assoc[src]], z[assoc[pos_dst]])
         neg_out = link_pred(z[assoc[src]], z[assoc[neg_dst]])
 

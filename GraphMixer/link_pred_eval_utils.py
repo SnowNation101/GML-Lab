@@ -85,6 +85,7 @@ def link_pred_eval(model, args, g, df, node_feats, edge_feats):
         ]
         
         # forward + backward
+        # TODO:
         has_temporal_neighbors = [True for _ in range(len(has_temporal_neighbors))] # ignore all mask ???
         y_pred_pos, y_pred_neg = model.predict(inputs, has_temporal_neighbors, neg_samples, subgraph_node_feats)
         y_pred_pos, y_pred_neg = y_pred_pos.flatten().cpu().numpy(), y_pred_neg.flatten().cpu().numpy()
