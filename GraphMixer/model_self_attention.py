@@ -7,7 +7,7 @@ import numpy as np
 
 from sklearn.metrics import average_precision_score, roc_auc_score
 
-from torch_scatter import scatter
+# from torch_scatter import scatter
 from jittor_geometric.nn import TransformerConv
 
 ################################################################################################
@@ -105,7 +105,8 @@ class SAMixer(nn.Module):
             x = self.mixer_blocks[i](x, edge_inds)
         x = self.layernorm(x)
         # x = scatter(x, batch_inds, dim=0, reduce="sum")[unique_batch_inds] / self.per_graph_size
-        x = scatter(x, batch_inds, dim=0, reduce="mean")[unique_batch_inds]
+        # x = scatter(x, batch_inds, dim=0, reduce="mean")[unique_batch_inds]
+        x = jittor.scatter(x, batch_inds, dim=0, reduce="mean")[unique_batch_inds]
         x = self.mlp_head(x)
         
         out = jittor.zeros((batch_size, x.size(1))).to(device)
@@ -133,7 +134,8 @@ class SAMixer(nn.Module):
             x = self.mixer_blocks[i](x, edge_inds)
         x = self.layernorm(x)
         # x = scatter(x, batch_inds, dim=0, reduce="mean")[unique_batch_inds]
-        x = scatter(x, batch_inds, dim=0, reduce="sum")[unique_batch_inds] / self.per_graph_size
+        # x = scatter(x, batch_inds, dim=0, reduce="sum")[unique_batch_inds] / self.per_graph_size
+        x = jittor.scatter(x, batch_inds, dim=0, reduce="sum")[unique_batch_inds] / self.per_graph_size
         x = self.mlp_head(x)
         
         out = jittor.zeros((batch_size, x.size(1))).to(device)

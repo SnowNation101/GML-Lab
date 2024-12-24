@@ -3,24 +3,41 @@ from construct_subgraph import NegLinkSampler
 from sklearn.metrics import average_precision_score, f1_score
 import copy
 
-import torch
+# import torch
+import jittor
+import jittor.nn as nn
 import pickle 
 import os
 
-@torch.no_grad()
-def evaluate(model, all_node_embeds, all_labels, args):
-    accs = list()
-    for node_embeds, label in zip(all_node_embeds, all_labels):
-        node_embeds, label = node_embeds.cuda(), label.cuda()
-        pred = model(node_embeds)
-        if args.posneg:
-            acc = average_precision_score(label.cpu(), pred.softmax(dim=1)[:, 1].cpu())
-        else:
-            acc = f1_score(label.cpu(), torch.argmax(pred, dim=1).cpu(), average="micro")
+# @torch.no_grad()
+# def evaluate(model, all_node_embeds, all_labels, args):
+#     accs = list()
+#     for node_embeds, label in zip(all_node_embeds, all_labels):
+#         node_embeds, label = node_embeds.cuda(), label.cuda()
+#         pred = model(node_embeds)
+#         if args.posneg:
+#             acc = average_precision_score(label.cpu(), pred.softmax(dim=1)[:, 1].cpu())
+#         else:
+#             acc = f1_score(label.cpu(), torch.argmax(pred, dim=1).cpu(), average="micro")
             
-        accs.append(acc)
-    acc = float(torch.tensor(accs).mean())
-    return acc
+#         accs.append(acc)
+#     acc = float(torch.tensor(accs).mean())
+#     return acc
+@jittor.no_grad()
+def evaluate(model, all_node_embeds, all_labels, args):
+  accs = list()
+  for node_embeds, label in zip(all_node_embeds, all_labels):
+    # node_embeds, label = node_embeds.cuda(), label.cuda()
+    node_embeds, label = node_embeds, label
+    pred = model(node_embeds)
+    if args.posneg:
+      acc = average_precision_score(label.numpy(), nn.softmax(pred, dim=1)[:, 1].numpy())
+    else:
+      acc = f1_score(label.numpy(), jittor.argmax(pred, dim=1).numpy(), average="micro")
+      
+    accs.append(acc)
+  acc = float(jittor.array(accs).mean())
+  return acc
 
 def fetch_eval_data(args, minibatch, neg_node_sampler, 
                     node_embeds_neg, node_labels_neg, over_sample=1): 
@@ -50,8 +67,10 @@ def fetch_eval_data(args, minibatch, neg_node_sampler,
             for node_embeds, label in minibatch:
                 if args.posneg:
                     neg_idx = neg_node_sampler.sample(node_embeds.shape[0])
-                    node_embeds = torch.cat([node_embeds, node_embeds_neg[neg_idx]], dim=0)
-                    label = torch.cat([label, node_labels_neg[neg_idx]], dim=0)
+                    # node_embeds = torch.cat([node_embeds, node_embeds_neg[neg_idx]], dim=0)
+                    # label = torch.cat([label, node_labels_neg[neg_idx]], dim=0)
+                    node_embeds = jittor.concat([node_embeds, node_embeds_neg[neg_idx]], dim=0)
+                    label = jittor.concat([label, node_labels_neg[neg_idx]], dim=0)
                 valid_node_embeds.append(node_embeds.cpu())
                 valid_labels.append(label.cpu())
             # test nodes
@@ -59,8 +78,10 @@ def fetch_eval_data(args, minibatch, neg_node_sampler,
             for node_embeds, label in minibatch:
                 if args.posneg:
                     neg_idx = neg_node_sampler.sample(node_embeds.shape[0])
-                    node_embeds = torch.cat([node_embeds, node_embeds_neg[neg_idx]], dim=0)
-                    label = torch.cat([label, node_labels_neg[neg_idx]], dim=0)
+                    # node_embeds = torch.cat([node_embeds, node_embeds_neg[neg_idx]], dim=0)
+                    # label = torch.cat([label, node_labels_neg[neg_idx]], dim=0)
+                    node_embeds = jittor.concat([node_embeds, node_embeds_neg[neg_idx]], dim=0)
+                    label = jittor.concat([label, node_labels_neg[neg_idx]], dim=0)
                 test_node_embeds.append(node_embeds.cpu())
                 test_labels.append(label.cpu())
         all_data = valid_node_embeds, valid_labels, test_node_embeds, test_labels
@@ -76,15 +97,20 @@ def node_classification(args, node_embeds, node_role, node_labels):
     model = NodeClassificationModel(node_embeds.shape[1], 
                                     100, 
                                     node_labels.max() + 1).cuda()
-    loss_fn = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-
+    # loss_fn = torch.nn.CrossEntropyLoss()
+    # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = jittor.optim.Adam(model.parameters(), lr=args.lr)
+    
     if args.posneg: # args.posneg makes sure the number of positive nodes == negative nodes, which is important for REDDIT + WIKI because its label is extremely unbalanced.
         node_role = node_role[node_labels == 1] # select all positive nodes
-        node_embeds_neg = node_embeds[node_labels == 0].cuda() # select all negative node's embeddings
+        # node_embeds_neg = node_embeds[node_labels == 0].cuda() # select all negative node's embeddings
+        node_embeds_neg = node_embeds[node_labels == 0] # select all negative node's embeddings
         node_embeds = node_embeds[node_labels == 1] # select all positive node's embeddings
-        node_labels = torch.ones(node_embeds.shape[0], dtype=torch.int64).cuda()
-        node_labels_neg = torch.zeros(node_embeds_neg.shape[0], dtype=torch.int64).cuda()
+        # node_labels = torch.ones(node_embeds.shape[0], dtype=torch.int64).cuda()
+        # node_labels_neg = torch.zeros(node_embeds_neg.shape[0], dtype=torch.int64).cuda()
+        node_labels = jittor.ones(node_embeds.shape[0], dtype=jittor.int64)
+        node_labels_neg = jittor.zeros(node_embeds_neg.shape[0], dtype=jittor.int64)
         neg_node_sampler = NegLinkSampler(node_embeds_neg.shape[0])
 
     # Setup mini-batch
@@ -107,9 +133,11 @@ def node_classification(args, node_embeds, node_role, node_labels):
 
             if args.posneg:
                 neg_idx = neg_node_sampler.sample(node_embeds.shape[0]) # sample a set of negative nodes with size equals to the positive node size
-                node_embeds = torch.cat([node_embeds, node_embeds_neg[neg_idx]], dim=0)
-                label = torch.cat([label, node_labels_neg[neg_idx]], dim=0)
-
+                # node_embeds = torch.cat([node_embeds, node_embeds_neg[neg_idx]], dim=0)
+                # label = torch.cat([label, node_labels_neg[neg_idx]], dim=0)
+                node_embeds = jittor.concat([node_embeds, node_embeds_neg[neg_idx]], dim=0)
+                label = jittor.concat([label, node_labels_neg[neg_idx]], dim=0)
+                
             # forward + backward
             pred = model(node_embeds)
             loss = loss_fn(pred, label.long())
@@ -159,7 +187,8 @@ class NodeEmbMinibatch():
         self.s_idx = 0
 
     def shuffle(self):
-        perm = torch.randperm(self.train_node_embeds.shape[0])
+        # perm = torch.randperm(self.train_node_embeds.shape[0])
+        perm = jittor.randperm(self.train_node_embeds.shape[0])
         self.train_node_embeds = self.train_node_embeds[perm]
         self.train_label = self.train_label[perm]
 

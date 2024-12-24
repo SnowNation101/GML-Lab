@@ -48,7 +48,7 @@ def print_model_info(model):
 
 def get_args():
     parser=argparse.ArgumentParser()
-    parser.add_argument('--data', type=str, default='REDDIT')
+    parser.add_argument('--data', type=str, default='MOOC')
     parser.add_argument('--device', type=int, default=1)
     parser.add_argument('--batch_size', type=int, default=600)
     parser.add_argument('--epochs', type=int, default=300)
@@ -117,7 +117,8 @@ def load_all_data(args):
         edge_feats = jittor.zeros((args.num_edges, 1)) # all edge has same features
         edge_feat_dims = 1
 
-    if node_feats != None and args.node_feats_as_edge_feats:
+    # if node_feats != None and args.node_feats_as_edge_feats:
+    if node_feats is not None and args.node_feats_as_edge_feats:
         print('>>> Use node features as part of edge features') 
         edge_feats = jittor.cat([node_feats[df.src.values] + node_feats[df.dst.values], edge_feats], dim=1)
         edge_feat_dims = edge_feats.size(1)
@@ -131,8 +132,7 @@ def load_all_data(args):
     args.node_feat_dims = node_feat_dims
     args.edge_feat_dims = edge_feat_dims
     
-    node_feats = node_feats.to(args.device) # here we only move node feats to cuda, not edges because too many edges
-    
+    # node_feats = node_feats.to(args.device) # here we only move node feats to cuda, not edges because too many edges
     return node_feats, edge_feats, g, df, args
 
 

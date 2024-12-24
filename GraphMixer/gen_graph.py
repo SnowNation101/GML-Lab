@@ -13,7 +13,7 @@ args.add_reverse = True # GraphMixer need it
 
 print(args)
 
-df = pd.read_csv('GraphMixer/DATA/{}/edges.csv'.format(args.data))
+df = pd.read_csv('./DATA/{}/edges.csv'.format(args.data))
 # df = pd.read_csv('data/{}/raw/{}.csv'.format(args.data, args.data))
 num_nodes = max(int(df['src'].max()), int(df['dst'].max())) + 1
 # num_nodes = max(int(df['user_id'].max()), int(df['item_id'].max())) + 1
@@ -64,7 +64,7 @@ for i in tqdm(range(ext_full_indptr.shape[0] - 1)):
 
 print('saving...')
 
-np.savez('GraphMixer/DATA/{}/ext_full.npz'.format(args.data), 
+np.savez('./DATA/{}/ext_full.npz'.format(args.data), 
          indptr=ext_full_indptr,
          indices=ext_full_indices, 
          ts=ext_full_ts, 

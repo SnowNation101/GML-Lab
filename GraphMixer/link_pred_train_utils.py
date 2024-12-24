@@ -68,8 +68,8 @@ def run(model, optimizer, args, subgraphs, df, node_feats, edge_feats, mode):
 
         # raw edge feats 
         subgraph_edge_feats = edge_feats[subgraph_data['eid']]
-        subgraph_edts = jittor.from_numpy(subgraph_data['edts']).float()
-
+        # subgraph_edts = torch.from_numpy(subgraph_data['edts']).float()
+        subgraph_edts = jittor.array(subgraph_data['edts']).float32()
         if args.use_graph_structure:
             num_subgraphs = len(mini_batch_inds)
             num_of_df_links = len(subgraph_data_list) // (cached_neg_samples+2)   
@@ -199,11 +199,14 @@ def link_pred_train(model, args, g, df, node_feats, edge_feats):
 
 def compute_sign_feats(node_feats, df, start_i, num_links, root_nodes, args):
     num_duplicate = len(root_nodes) // num_links 
+    # print(node_feats)
     num_nodes = node_feats.shape[0]
 
     root_inds = jittor.arange(len(root_nodes)).view(num_duplicate, -1)
-    root_inds = [arr.flatten() for arr in root_inds.chunk(1, dim=1)]
-
+    # print(root_inds)
+    
+    # root_inds = [arr.flatten() for arr in root_inds.chunk(1, dim=1)]
+    root_inds = [arr.flatten() for arr in root_inds]
     output_feats = jittor.zeros((len(root_nodes), node_feats.size(1))).to(args.device)
     i = start_i
 
@@ -214,8 +217,8 @@ def compute_sign_feats(node_feats, df, start_i, num_links, root_nodes, args):
         else:
             prev_i = max(0, i - args.structure_time_gap)
             cur_df = df[prev_i: i] # get adj's row, col indices (as undirected)
-            src = jittor.from_numpy(cur_df.src.values)
-            dst = jittor.from_numpy(cur_df.dst.values)
+            src = jittor.array(cur_df.src.values)
+            dst = jittor.array(cur_df.dst.values)
             edge_index = jittor.stack([
                 jittor.cat([src, dst]), 
                 jittor.cat([dst, src])
@@ -290,7 +293,7 @@ def fetch_all_predict(model, optimizer, args, subgraphs, df, node_feats, edge_fe
 
         # raw edge feats 
         subgraph_edge_feats = edge_feats[subgraph_data['eid']]
-        subgraph_edts = jittor.from_numpy(subgraph_data['edts']).float()
+        subgraph_edts = jittor.array(subgraph_data['edts']).float32()
 
         if args.use_graph_structure:
             num_of_df_links = len(subgraph_data_list) // (cached_neg_samples+2)   

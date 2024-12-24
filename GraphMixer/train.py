@@ -2,7 +2,9 @@
 Link Prediction using Mixer
 """
 
-import torch
+# import torch
+import jittor
+import jittor.nn as nn
 import numpy as np
 
 import argparse
@@ -47,7 +49,7 @@ def print_model_info(model):
 
 def get_args():
     parser=argparse.ArgumentParser()
-    parser.add_argument('--data', type=str, default='REDDIT')
+    parser.add_argument('--data', type=str, default='MOOC')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=600)
     parser.add_argument('--epochs', type=int, default=300)
@@ -101,7 +103,8 @@ def load_all_data(args):
     # feature pre-processing
     if args.use_onehot_node_feats:
         print('>>> Use one-hot node features')
-        node_feats = torch.eye(args.num_nodes)
+        # node_feats = torch.eye(args.num_nodes)
+        node_feats = jittor.init.eye(args.num_nodes)
         node_feat_dims = node_feats.size(1)
 
     if args.ignore_node_feats:
@@ -111,12 +114,14 @@ def load_all_data(args):
 
     if edge_feats is None or args.ignore_edge_feats: # By default edge feature exists
         print('>>> Ignore edge features')
-        edge_feats = torch.zeros((args.num_edges, 1)) # all edge has same features
+        # edge_feats = torch.zeros((args.num_edges, 1)) # all edge has same features
+        edge_feats = jittor.zeros((args.num_edges, 1)) # all edge has same features
         edge_feat_dims = 1
 
     if node_feats != None and args.node_feats_as_edge_feats:
         print('>>> Use node features as part of edge features') 
-        edge_feats = torch.cat([node_feats[df.src.values] + node_feats[df.dst.values], edge_feats], dim=1)
+        edge_feats = jittor.concat([node_feats[df.src.values] + node_feats[df.dst.values], edge_feats], dim=1)
+        # edge_feats = torch.cat([node_feats[df.src.values] + node_feats[df.dst.values], edge_feats], dim=1)
         edge_feat_dims = edge_feats.size(1)
         
     print('Node feature dim %d, edge feature dim %d'%(node_feat_dims, edge_feat_dims))
@@ -196,8 +201,10 @@ if __name__ == "__main__":
 
     print(args)
     
-    args.device = f"cuda:{args.device}" if torch.cuda.is_available() else "cpu"
-    args.device = torch.device(args.device)
+    # args.device = f"cuda:{args.device}" if torch.cuda.is_available() else "cpu"
+    # args.device = torch.device(args.device)
+    
+    jittor.flags.use_cuda = args.device 
     # args.device = torch.device('cpu')
 
     set_seed(0)
@@ -217,11 +224,13 @@ if __name__ == "__main__":
     if os.path.exists(args.model_fn) == False or args.regen_models:
         print('Train link prediction task from scratch ...')
         model = link_pred_train(model.to(args.device), args, g, df, node_feats, edge_feats)
-        torch.save(model.state_dict(), args.model_fn)
+        # torch.save(model.state_dict(), args.model_fn)
+        jittor.save(model.state_dict(), args.model_fn)
         print('Save model to ', args.model_fn)
     else:
         print('Load model from ', args.model_fn)
-        model.load_state_dict(torch.load(args.model_fn))
+        # model.load_state_dict(torch.load(args.model_fn))
+        model.load_state_dict(jittor.load(args.model_fn))
         model = model.to(args.device)
           
     ###################################################

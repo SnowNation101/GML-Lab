@@ -25,4 +25,6 @@ dist/
 core
 __data__
 data/
+GraphMixer/DATA/
 ./data
+pip_cache/

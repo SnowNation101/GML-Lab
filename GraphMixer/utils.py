@@ -101,7 +101,7 @@ def get_node_embeds(model, edge_feats, g, df, args):
 
         # raw edge feats 
         subgraph_edge_feats = edge_feats[subgraph_data['eid']]
-        subgraph_edts = jittor.from_numpy(subgraph_data['edts']).float()
+        subgraph_edts = jittor.array(subgraph_data['edts']).float32()
 
         # get mini-batch inds
         all_inds, has_temporal_neighbors = [], []

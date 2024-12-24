@@ -55,8 +55,9 @@ def link_pred_eval(model, args, g, df, node_feats, edge_feats):
 
         # raw edge feats 
         subgraph_edge_feats = edge_feats[subgraph_data['eid']]
-        subgraph_edts = torch.from_numpy(subgraph_data['edts']).float()
-
+        # subgraph_edts = torch.from_numpy(subgraph_data['edts']).float()
+        subgraph_edts = jittor.array(subgraph_data['edts']).float32()
+        
         if args.use_graph_structure:
             num_subgraphs = len(subgraph_data)
             num_of_df_links = 1
@@ -81,7 +82,8 @@ def link_pred_eval(model, args, g, df, node_feats, edge_feats):
             subgraph_edge_feats.to(args.device), 
             subgraph_edts.to(args.device), 
             len(has_temporal_neighbors), 
-            torch.tensor(all_inds).long()
+            # torch.tensor(all_inds).long()
+            jittor.array(all_inds).int32()
         ]
         
         # forward + backward
