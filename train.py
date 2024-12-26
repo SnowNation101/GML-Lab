@@ -1,7 +1,7 @@
 """
 Link Prediction using Mixer
 """
-
+CUDA_VISIBLE_DEVICES=7
 import jittor
 import numpy as np
 

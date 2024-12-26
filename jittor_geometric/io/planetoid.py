@@ -4,7 +4,7 @@ from itertools import repeat
 import numpy as np
 import jittor as jt
 from jittor import Var
-# from torch_sparse import coalesce as coalesce_fn, SparseTensor
+from torch_sparse import coalesce as coalesce_fn, SparseTensor
 from jittor_geometric.data import Data
 from jittor_geometric.io import read_txt_array
 from jittor_geometric.utils import remove_self_loops

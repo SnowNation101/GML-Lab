@@ -2,6 +2,7 @@ import os
 import pickle
 from tqdm import tqdm
 import numpy as np
+import traceback
 
 from .construct_subgraph import get_parallel_sampler, get_mini_batch
 
@@ -81,14 +82,15 @@ def pre_compute_subgraphs(args, g, df, mode):
     else:
         extra_neg_samples = 1
         
-    fn = os.path.join(os.getcwd(), 'DATA', args.data, 
+    fn = os.path.join(os.getcwd(), 'GraphMixer/DATA', args.data, 
                         '%s_neg_sample_neg%d_bs%d_hops%d_neighbors%d.pickle'%(mode, 
                                                                             extra_neg_samples, 
                                                                             args.batch_size, 
                                                                             args.sampled_num_hops, 
                                                                             args.num_neighbors))
     ###################################################
-
+    print("fn",fn)
+    print("path",os.path.exists(fn))
     # try:
     if os.path.exists(fn):
         all_subgraphs = pickle.load(open(fn, 'rb'))
@@ -138,6 +140,8 @@ def pre_compute_subgraphs(args, g, df, mode):
             pickle.dump(all_subgraphs, open(fn, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
         except:
             print('For some shit reason pickle cannot save ... but anyway ...')
+            print(f'Exception: {e}')
+            traceback.print_exc()
         
         ###################################################
         

@@ -1,14 +1,15 @@
 from tqdm import tqdm
 import jittor
+import torch
 
 import time
 import copy
 import json
 
 import numpy as np
-# from torch_sparse import SparseTensor
+from torch_sparse import SparseTensor
 from jittor_geometric.utils import coalesce, add_self_loops
-
+from jittor.sparse import SparseVar
 from .data_process_utils import pre_compute_subgraphs, get_random_inds, get_subgraph_sampler
 from .construct_subgraph import construct_mini_batch_giant_graph, print_subgraph_data
 
@@ -217,26 +218,42 @@ def compute_sign_feats(node_feats, df, start_i, num_links, root_nodes, args):
         else:
             prev_i = max(0, i - args.structure_time_gap)
             cur_df = df[prev_i: i] # get adj's row, col indices (as undirected)
-            src = jittor.array(cur_df.src.values)
-            dst = jittor.array(cur_df.dst.values)
-            edge_index = jittor.stack([
-                jittor.cat([src, dst]), 
-                jittor.cat([dst, src])
+            # src = jittor.array(cur_df.src.values)
+            # dst = jittor.array(cur_df.dst.values)
+            # edge_index = jittor.stack([
+            #     jittor.cat([src, dst]), 
+            #     jittor.cat([dst, src])
+            # ])
+            src = torch.from_numpy(cur_df.src.values)
+            dst = torch.from_numpy(cur_df.dst.values)
+            edge_index = torch.stack([
+                torch.cat([src, dst]), 
+                torch.cat([dst, src])
             ])
 
-            edge_index, edge_cnt = jittor.unique(edge_index, dim=1, return_counts=True) 
-
+            # edge_index, edge_cnt = jittor.unique(edge_index, dim=1, return_counts=True) 
+            edge_index, edge_cnt = torch.unique(edge_index, dim=1, return_counts=True)
             mask = edge_index[0]!=edge_index[1] # ignore self-loops
 
             adj = SparseTensor(
                 # value = edge_cnt[mask].float(), # take number of edges into consideration
-                value = jittor.ones_like(edge_cnt[mask]).float(),
+                value = torch.ones_like(edge_cnt[mask]).float(),
                 row = edge_index[0][mask].long(),
                 col = edge_index[1][mask].long(),
                 sparse_sizes=(num_nodes, num_nodes)
             )
-            adj_norm = row_norm(adj).to(args.device)
-
+            print(adj)
+            # adj = SparseVar(
+            #     # value = edge_cnt[mask].float(), # take number of edges into consideration
+            #     values = jittor.ones_like(edge_cnt[mask]).float32(),
+            #     # row = edge_index[0][mask].long(),
+            #     # col = edge_index[1][mask].long(),
+            #     indices = jittor.stack([edge_index[0][mask], edge_index[1][mask]]).long(),
+            #     shape=jittor.NanoVector([num_nodes, num_nodes])
+            # )
+            # adj_norm = row_norm(adj).to(args.device)
+            adj_norm = row_norm(adj)
+            
             sign_feats = [node_feats]
             for _ in range(args.structure_hops):
                 sign_feats.append(adj_norm@sign_feats[-1])

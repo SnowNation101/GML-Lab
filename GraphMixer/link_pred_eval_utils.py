@@ -5,7 +5,7 @@ import copy
 import json
 
 import numpy as np
-# from torch_sparse import SparseTensor
+from torch_sparse import SparseTensor
 from jittor_geometric.utils import coalesce, add_self_loops
 
 from .construct_subgraph import construct_mini_batch_giant_graph, print_subgraph_data

@@ -28,3 +28,8 @@ data/
 GraphMixer/DATA/
 ./data
 pip_cache/
+adj_t.pkl
+adj_t1.pkl
+deg_inv.pkl
+deg.pkl
+jittor_geometric/io/planetoid.py
