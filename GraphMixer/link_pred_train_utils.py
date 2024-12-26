@@ -105,9 +105,10 @@ def run(model, optimizer, args, subgraphs, df, node_feats, edge_feats, mode):
         start_time = time.time()
         loss, ap, auc = model(inputs, has_temporal_neighbors, neg_samples, subgraph_node_feats)
         if mode == 'train' and optimizer != None:
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            # optimizer.zero_grad()
+            # loss.backward()
+            # optimizer.step()
+            optimizer.step(loss)
         time_aggre += (time.time() - start_time)
         
         all_ap.append(ap)
@@ -208,7 +209,7 @@ def compute_sign_feats(node_feats, df, start_i, num_links, root_nodes, args):
     
     # root_inds = [arr.flatten() for arr in root_inds.chunk(1, dim=1)]
     root_inds = [arr.flatten() for arr in root_inds]
-    output_feats = jittor.zeros((len(root_nodes), node_feats.size(1))).to(args.device)
+    output_feats = jittor.zeros((len(root_nodes), node_feats.size(1)))
     i = start_i
 
     for _root_ind in root_inds:
@@ -337,8 +338,8 @@ def fetch_all_predict(model, optimizer, args, subgraphs, df, node_feats, edge_fe
 
         ###################################################
         inputs = [
-            subgraph_edge_feats.to(args.device), 
-            subgraph_edts.to(args.device), 
+            subgraph_edge_feats, 
+            subgraph_edts, 
             len(has_temporal_neighbors), 
             jittor.tensor(all_inds).long()
         ]

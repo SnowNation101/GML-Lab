@@ -225,8 +225,8 @@ if __name__ == "__main__":
     else:
         print('Load model from ', args.model_fn)
         model.load_state_dict(jittor.load(args.model_fn))
-        model = model.to(args.device)
+        # model = model.to(args.device)
           
     ###################################################
     # Recall@K + MRR
-    link_pred_eval(model.to(args.device), args, g, df, node_feats, edge_feats)
+    link_pred_eval(model, args, g, df, node_feats, edge_feats)

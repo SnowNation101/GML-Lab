@@ -161,8 +161,8 @@ def get_node_embeds(model, edge_feats, g, df, args):
 
         ###################################################
         inputs = [
-            subgraph_edge_feats.to(args.device), 
-            subgraph_edts.to(args.device), 
+            subgraph_edge_feats, 
+            subgraph_edts, 
             len(has_temporal_neighbors), 
             jittor.tensor(all_inds).long()
         ]

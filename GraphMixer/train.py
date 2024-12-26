@@ -133,7 +133,7 @@ def load_all_data(args):
     args.node_feat_dims = node_feat_dims
     args.edge_feat_dims = edge_feat_dims
     
-    node_feats = node_feats.to(args.device) # here we only move node feats to cuda, not edges because too many edges
+    # node_feats = node_feats.to(args.device) # here we only move node feats to cuda, not edges because too many edges
     
     return node_feats, edge_feats, g, df, args
 
@@ -223,7 +223,7 @@ if __name__ == "__main__":
     
     if os.path.exists(args.model_fn) == False or args.regen_models:
         print('Train link prediction task from scratch ...')
-        model = link_pred_train(model.to(args.device), args, g, df, node_feats, edge_feats)
+        model = link_pred_train(model, args, g, df, node_feats, edge_feats)
         # torch.save(model.state_dict(), args.model_fn)
         jittor.save(model.state_dict(), args.model_fn)
         print('Save model to ', args.model_fn)
@@ -231,8 +231,8 @@ if __name__ == "__main__":
         print('Load model from ', args.model_fn)
         # model.load_state_dict(torch.load(args.model_fn))
         model.load_state_dict(jittor.load(args.model_fn))
-        model = model.to(args.device)
+        # model = model.to(args.device)
           
     ###################################################
     # Recall@K + MRR
-    link_pred_eval(model.to(args.device), args, g, df, node_feats, edge_feats)
+    link_pred_eval(model, args, g, df, node_feats, edge_feats)

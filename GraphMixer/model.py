@@ -1,6 +1,6 @@
 import jittor
 import jittor.nn as nn
-import jittor.nn as F
+# import jittor.nn as F
 
 import math
 import numpy as np
@@ -87,7 +87,7 @@ class TimeEncode(nn.Module):
         self.w.bias.requires_grad = False
     
     @jittor.no_grad()
-    def forward(self, t):
+    def execute(self, t):
         output = jittor.cos(self.w(t.reshape((-1, 1))))
         return output
 
@@ -128,14 +128,15 @@ class FeedForward(nn.Module):
             # self.linear_1.reset_parameters()
             reset_linear_parameters(self.linear_1)
 
-    def forward(self, x):
+    def execute(self, x):
         x = self.linear_0(x)
-        x = F.gelu(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = nn.gelu(x)
+        x = nn.dropout(x, p=self.dropout, is_train=self.training)
         
         if self.use_single_layer==False:
             x = self.linear_1(x)
-            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = nn.dropout(x, p=self.dropout, is_train=
+                           self.training)
         return x
 
 class MixerBlock(nn.Module):
@@ -185,7 +186,7 @@ class MixerBlock(nn.Module):
         x = self.channel_forward(x)
         return x
 
-    def forward(self, x):
+    def execute(self, x):
         if 'token' in self.module_spec:
             x = x + self.token_mixer(x)
         if 'channel' in self.module_spec:
@@ -207,7 +208,7 @@ class FeatEncode(nn.Module):
         self.time_encoder.reset_parameters()
         reset_linear_parameters(self.feat_encoder)
         
-    def forward(self, edge_feats, edge_ts):
+    def execute(self, edge_feats, edge_ts):
         edge_time_feats = self.time_encoder(edge_ts)
         x = jittor.cat([edge_feats, edge_time_feats], dim=1)
         return self.feat_encoder(x)
@@ -269,11 +270,11 @@ class MLPMixer(nn.Module):
         reset_linear_parameters(self.mlp_head)
 
 
-    def forward(self, edge_feats, edge_ts, batch_size, inds):
+    def execute(self, edge_feats, edge_ts, batch_size, inds):
         # x :     [ batch_size, graph_size, edge_dims+time_dims]
         edge_time_feats = self.feat_encoder(edge_feats, edge_ts)
         x = jittor.zeros((batch_size * self.per_graph_size, 
-                         edge_time_feats.size(1))).to(edge_feats.device)
+                         edge_time_feats.size(1)))
         x[inds] = x[inds] + edge_time_feats     
         x = jittor.split(x, self.per_graph_size)
         x = jittor.stack(x)
@@ -319,13 +320,13 @@ class EdgePredictor_per_node(jittor.nn.Module):
         reset_linear_parameters(self.dst_fc)
         reset_linear_parameters(self.out_fc)
 
-    def forward(self, h, neg_samples=1):
+    def execute(self, h, neg_samples=1):
         num_edge = h.shape[0] // (neg_samples + 2)
         h_src = self.src_fc(h[:num_edge])
         h_pos_dst = self.dst_fc(h[num_edge:2 * num_edge])
         h_neg_dst = self.dst_fc(h[2 * num_edge:])
-        h_pos_edge = jittor.nn.functional.relu(h_src + h_pos_dst)
-        h_neg_edge = jittor.nn.functional.relu(h_src.tile(neg_samples, 1) + h_neg_dst)
+        h_pos_edge = nn.relu(h_src + h_pos_dst)
+        h_neg_edge = nn.relu(h_src.repeat(neg_samples, 1) + h_neg_dst)
         # h_pos_edge = jittor.nn.functional.relu(h_pos_dst)
         # h_neg_edge = jittor.nn.functional.relu(h_neg_dst)
         return self.out_fc(h_pos_edge), self.out_fc(h_neg_edge)
@@ -353,12 +354,14 @@ class Mixer_per_node(nn.Module):
             self.base_model.reset_parameters()
         self.edge_predictor.reset_parameters()
         
-    def forward(self, model_inputs, has_temporal_neighbors, neg_samples, node_feats):        
+    def execute(self, model_inputs, has_temporal_neighbors, neg_samples, node_feats):        
         pred_pos, pred_neg = self.predict(model_inputs, has_temporal_neighbors, neg_samples, node_feats)
         
         pos_mask, neg_mask = self.pos_neg_mask(has_temporal_neighbors, neg_samples)
-        loss_pos = self.creterion(pred_pos, jittor.ones_like(pred_pos))[pos_mask].mean()
-        loss_neg = self.creterion(pred_neg, jittor.zeros_like(pred_neg))[neg_mask].mean()
+        # loss_pos = self.creterion(pred_pos, jittor.ones_like(pred_pos))[pos_mask].mean()
+        # loss_neg = self.creterion(pred_neg, jittor.zeros_like(pred_neg))[neg_mask].mean()
+        loss_pos = self.creterion(pred_pos, jittor.ones_like(pred_pos))[jittor.array(pos_mask)].mean()
+        loss_neg = self.creterion(pred_neg, jittor.zeros_like(pred_neg))[jittor.array(neg_mask)].mean()
         
         # compute roc and precision score
         acc, auc  = compute_ap_score(pred_pos, pred_neg, neg_samples)        
@@ -410,6 +413,6 @@ class NodeClassificationModel(nn.Module):
 
     def forward(self, x):
         x = self.fc1(x)
-        x = jittor.nn.functional.relu(x)
+        x = nn.relu(x)
         x = self.fc2(x)
         return x

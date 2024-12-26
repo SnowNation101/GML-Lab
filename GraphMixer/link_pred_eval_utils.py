@@ -79,8 +79,8 @@ def link_pred_eval(model, args, g, df, node_feats, edge_feats):
 
         ###################################################
         inputs = [
-            subgraph_edge_feats.to(args.device), 
-            subgraph_edts.to(args.device), 
+            subgraph_edge_feats, 
+            subgraph_edts, 
             len(has_temporal_neighbors), 
             # torch.tensor(all_inds).long()
             jittor.array(all_inds).int32()
