@@ -8,7 +8,7 @@ import pandas as pd
 from .construct_subgraph import construct_mini_batch_giant_graph, get_parallel_sampler, get_mini_batch
 
 import torch_sparse
-# from jittor.sparse import SparseVar,spmm
+from jittor.sparse import SparseVar,spmm
 from jittor_geometric.nn.conv.gcn_conv import gcn_norm
 
 from tqdm import tqdm
@@ -51,27 +51,27 @@ def dense_to_sparse(dense_matrix):
   
 
 def row_norm(adj_t):
-    if isinstance(adj_t, torch_sparse.SparseTensor):
-    # if isinstance(adj_t, SparseVar):
+    # if isinstance(adj_t, torch_sparse.SparseTensor):
+    if isinstance(adj_t, SparseVar):
         # adj_t = jittor_sparse.fill_diag(adj, 1)
-        print("adj_t",adj_t)
+        # print("adj_t",adj_t)
         # pickle.dump(adj_t, open("adj_t.pkl", "wb"))
-        adj_t = sparse_tensor_to_sparse_var(adj_t)
+        # adj_t = sparse_tensor_to_sparse_var(adj_t)
         # deg = torch_sparse.sum(adj_t, dim=1)
         deg = adj_t.to_dense().sum(dim=1)
         #jittor: deg = adj_t.to_dense().sum(axis=1)
-        print("deg",deg)
+        # print("deg",deg)
         # pickle.dump(deg, open("deg.pkl", "wb"))
         # deg = sum(adj_t, dim=1)
         # deg = adj_t.sum(axis=1)
         deg_inv = 1. / deg
-        print("deg_inv",deg_inv)
+        # print("deg_inv",deg_inv)
         deg_inv.masked_fill_(deg_inv == float('inf'), 0.)
-        print("deg_inv",deg_inv)
+        # print("deg_inv",deg_inv)
         # pickle.dump(deg_inv, open("deg_inv.pkl", "wb"))
         # adj_t = torch_sparse.mul(adj_t, deg_inv.view(-1, 1))
         adj_t = dense_to_sparse(adj_t.to_dense().mul(deg_inv.view(-1, 1)))
-        print("adj_t",adj_t)
+        # print("adj_t",adj_t)
         # adj_t = spmm(adj_t, deg_inv.view(-1, 1))、
         # pickle.dump(adj_t, open("adj_t1.pkl", "wb"))
         return adj_t

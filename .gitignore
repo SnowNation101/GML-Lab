@@ -33,3 +33,13 @@ adj_t1.pkl
 deg_inv.pkl
 deg.pkl
 jittor_geometric/io/planetoid.py
+col.pkl
+dst.pkl
+edge_index.pkl
+row.pkl
+sparse_sizes.pkl
+src.pkl
+torchdst.pkl
+torchedge_index.pkl
+torchsrc.pkl
+value.pkl

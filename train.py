@@ -199,7 +199,8 @@ if __name__ == "__main__":
 
     print(args)
     
-    jittor.flags.use_cuda = args.device  
+    # jittor.flags.use_cuda = args.device  
+    jittor.flags.use_cuda = 0
     # args.device = torch.device('cpu')
 
     set_seed(0)
